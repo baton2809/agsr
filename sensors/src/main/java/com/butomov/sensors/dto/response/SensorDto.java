@@ -11,13 +11,10 @@ import lombok.*;
 public class SensorDto {
 
     private Long id;
-
     private String name;
     private String model;
-
     @JsonProperty("range")
     private RangeDto range;
-
     private String type;
     private String unit;
     private String location;

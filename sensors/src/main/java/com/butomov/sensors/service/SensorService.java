@@ -1,13 +1,16 @@
 package com.butomov.sensors.service;
 
 import com.butomov.sensors.dto.request.SensorCreate;
-import com.butomov.sensors.dto.response.SensorDto;
 import com.butomov.sensors.dto.response.RangeDto;
+import com.butomov.sensors.dto.response.SensorDto;
+import com.butomov.sensors.exception.SensorNotFoundException;
+import com.butomov.sensors.exception.ValidationException;
 import com.butomov.sensors.mapper.SensorMapper;
 import com.butomov.sensors.model.Sensor;
 import com.butomov.sensors.model.SensorRange;
 import com.butomov.sensors.repository.SensorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,29 +31,54 @@ public class SensorService {
 
     public List<SensorDto> getSensors(int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return mapSensorsToDTO(sensorRepository.findAll(pageable).toList());
+        return sensorRepository.findAll(pageable)
+                .stream()
+                .map(mapper::toDto)
+                .collect(Collectors.toList());
     }
 
     public SensorDto getSensorById(Long id) {
-        Sensor sensor = sensorRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Sensor not found"));
-        return mapSensorToDTO(sensor);
+        return sensorRepository.findById(id)
+                .map(mapper::toDto)
+                .orElseThrow(() -> new SensorNotFoundException(id));
     }
 
     public SensorDto createSensor(SensorCreate sensor) {
-        Sensor createdSensor = sensorRepository.save(mapper.toEntity(sensor));
-        return mapSensorToDTO(createdSensor);
+        try {
+            Sensor createdSensor = sensorRepository.save(mapper.toEntity(sensor));
+            return mapper.toDto(createdSensor);
+        } catch (DataAccessException e) {
+            throw new ValidationException("Error saving sensor to database: " + e.getMessage());
+        }
     }
 
     public SensorDto updateSensor(Long id, SensorCreate sensor) {
-        Sensor toUpdate = mapper.toEntity(sensor);
-        toUpdate.setId(id);
-        Sensor updatedSensor = sensorRepository.save(toUpdate);
-        return mapSensorToDTO(updatedSensor);
+        Sensor existingSensor = sensorRepository.findById(id)
+                .orElseThrow(() -> new SensorNotFoundException(id));
+        try {
+            Sensor toUpdate = mapper.toEntity(sensor);
+            toUpdate.setId(existingSensor.getId());
+            Sensor updatedSensor = sensorRepository.save(toUpdate);
+            return mapper.toDto(updatedSensor);
+        } catch (DataAccessException e) {
+            throw new ValidationException("Error updating sensor: " + e.getMessage());
+        }
     }
 
     public void deleteSensor(Long id) {
-        sensorRepository.deleteById(id);
+        if (!sensorRepository.existsById(id)) {
+            throw new SensorNotFoundException(id);
+        }
+        try {
+            sensorRepository.deleteById(id);
+        } catch (DataAccessException e) {
+            throw new ValidationException("Error deleting sensor: " + e.getMessage());
+        }
+    }
+
+    public List<SensorDto> searchSensors(String query) {
+        List<Sensor> sensors = sensorRepository.findByNameContainingIgnoreCaseOrModelContainingIgnoreCase(query, query);
+        return sensors.stream().map(this::mapSensorToDTO).collect(Collectors.toList());
     }
 
     private SensorDto mapSensorToDTO(Sensor sensor) {

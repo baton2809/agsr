@@ -1,8 +1,9 @@
 package com.butomov.sensors.model;
 
-import com.butomov.sensors.validation.ValidRange;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 @Entity
@@ -28,7 +29,6 @@ public class Sensor {
     @Column(nullable = false, length = 15)
     private String model;
 
-    @ValidRange
     @ManyToOne(cascade = CascadeType.PERSIST)
     @JoinColumn(name = "range_id", nullable = false)
     private SensorRange range;
